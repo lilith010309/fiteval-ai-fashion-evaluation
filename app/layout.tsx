@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./extended.css";
 
 export const metadata: Metadata = {
   title: "FitEval · AI 穿搭模型评测平台",

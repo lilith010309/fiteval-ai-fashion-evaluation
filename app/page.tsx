@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 
-type Page = "create" | "report" | "cases";
+type Page = "create" | "report" | "cases" | "dataset" | "models";
 type Score = { name: string; value: number; reason: string; advice: string; confidence?: number };
 type Evaluation = {
   taskId: string;
@@ -41,6 +41,8 @@ const nav = [
   { id: "create" as Page, icon: "＋", label: "创建评测任务", sub: "单 Case 评估" },
   { id: "report" as Page, icon: "◎", label: "模型评测报告", sub: "质量诊断" },
   { id: "cases" as Page, icon: "▦", label: "Bad Case 分析", sub: "问题洞察" },
+  { id: "dataset" as Page, icon: "⌗", label: "评测数据集", sub: "共 328 条" },
+  { id: "models" as Page, icon: "◫", label: "模型版本", sub: "3 个版本" },
 ];
 
 function Pill({ children, tone = "gray" }: { children: React.ReactNode; tone?: "gray" | "green" | "purple" | "red" }) {
@@ -53,19 +55,26 @@ function Sidebar({ page, setPage }: { page: Page; setPage: (p: Page) => void }) 
     <div className="workspace"><span>当前工作区</span><b>Style Model Team</b><i>⌄</i></div>
     <nav>
       <p>评测工作台</p>
-      {nav.map(n => <button key={n.id} className={page === n.id ? "active" : ""} onClick={() => setPage(n.id)}>
+      {nav.slice(0,3).map(n => <button key={n.id} className={page === n.id ? "active" : ""} onClick={() => setPage(n.id)}>
         <em>{n.icon}</em><span><b>{n.label}</b><small>{n.sub}</small></span>{n.id === "cases" && <i className="badge">12</i>}
       </button>)}
       <p>数据管理</p>
-      <button><em>⌗</em><span><b>评测数据集</b><small>共 328 条</small></span></button>
-      <button><em>◫</em><span><b>模型版本</b><small>3 个版本</small></span></button>
+      {nav.slice(3).map(n => <button key={n.id} className={page === n.id ? "active" : ""} onClick={() => setPage(n.id)}>
+        <em>{n.icon}</em><span><b>{n.label}</b><small>{n.sub}</small></span>
+      </button>)}
     </nav>
     <div className="side-foot"><div><span className="avatar">LY</span><span><b>林屿</b><small>产品评测负责人</small></span><i>•••</i></div><p><span></span> 服务运行正常 <b>v1.8.2</b></p></div>
   </aside>;
 }
 
 function Topbar({ page }: { page: Page }) {
-  const meta = { create: ["创建评测任务", "使用用户画像与穿搭图片，生成并评估模型输出"], report: ["模型评测报告", "TASK-20260728-042 · StyleMind-v2.4"], cases: ["Bad Case Dashboard", "定位模型薄弱环节，驱动数据与策略迭代"] }[page];
+  const meta = {
+    create: ["创建评测任务", "使用用户画像与穿搭图片，生成并评估模型输出"],
+    report: ["模型评测报告", "真实视觉证据 · 五维质量诊断"],
+    cases: ["Bad Case Dashboard", "定位模型薄弱环节，驱动数据与策略迭代"],
+    dataset: ["评测数据集", "管理标准测试 Case、人工标注与回归测试集"],
+    models: ["模型版本", "对比模型、Prompt 与评分策略的版本表现"],
+  }[page];
   return <header className="topbar"><div><p>评测中心 <span>/</span> {meta[0]}</p><h1>{meta[0]}</h1><small>{meta[1]}</small></div><div className="top-actions"><button>⌕</button><button className="notice">♢<i></i></button><div className="model"><span></span><div><small>当前视觉模型</small><b>Qwen3-VL Plus</b></div><i>⌄</i></div></div></header>;
 }
 
@@ -197,8 +206,71 @@ function CasesPage() {
   </div>;
 }
 
+const datasetRows = [
+  { id:"DS-0328", scene:"通勤 / 客户会议", profile:"28岁 · 162cm · 互联网产品经理", style:"极简 / 知性", label:"已复核", score:86, group:"核心回归集", image:"通勤" },
+  { id:"DS-0327", scene:"周末约会", profile:"25岁 · 158cm · 梨形身材", style:"法式 / 复古", label:"已复核", score:58, group:"身材适配集", image:"约会" },
+  { id:"DS-0326", scene:"创意办公", profile:"29岁 · 165cm · 设计师", style:"日系 / 极简", label:"待复核", score:72, group:"风格理解集", image:"办公" },
+  { id:"DS-0325", scene:"朋友婚礼", profile:"27岁 · 168cm · 品牌策划", style:"优雅 / 上镜", label:"已标注", score:66, group:"色彩专项集", image:"婚礼" },
+  { id:"DS-0324", scene:"城市旅行", profile:"31岁 · 160cm · 苹果型身材", style:"舒适 / 显瘦", label:"待标注", score:null, group:"身材适配集", image:"旅行" },
+  { id:"DS-0323", scene:"客户提案", profile:"32岁 · 170cm · 咨询顾问", style:"专业 / 现代", label:"已复核", score:91, group:"核心回归集", image:"提案" },
+];
+
+function DatasetPage({ runEvaluation }: { runEvaluation: () => void }) {
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("全部状态");
+  const [selected, setSelected] = useState<string[]>([]);
+  const rows = datasetRows.filter(row => (status === "全部状态" || row.label === status) && `${row.id}${row.scene}${row.profile}${row.style}`.includes(query));
+  const toggle = (id:string) => setSelected(selected.includes(id) ? selected.filter(x=>x!==id) : [...selected,id]);
+  return <div className="page dataset-page">
+    <div className="dataset-summary">
+      <div className="panel ds-stat"><span>⌗</span><div><small>全部 Case</small><b>328</b><p>覆盖 12 个核心场景</p></div></div>
+      <div className="panel ds-stat"><span>✓</span><div><small>已完成标注</small><b>286</b><p><i>87.2%</i> 标注完成率</p></div></div>
+      <div className="panel ds-stat"><span>◉</span><div><small>核心回归集</small><b>120</b><p>每次发版自动运行</p></div></div>
+      <div className="panel ds-stat"><span>⌛</span><div><small>待复核</small><b>18</b><p><em>需要人工处理</em></p></div></div>
+    </div>
+    <section className="panel dataset-panel">
+      <div className="dataset-toolbar"><div><h2>测试 Case 库</h2><p>标准化管理图片、需求和人工 Gold Label</p></div><div><button className="outline-btn">⇧ 导入数据</button><button className="primary-btn" onClick={runEvaluation}>＋ 新建 Case</button></div></div>
+      <div className="dataset-filters"><label>⌕<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="搜索 Case ID、场景或画像"/></label><select><option>全部数据集</option><option>核心回归集</option><option>身材适配集</option><option>风格理解集</option><option>色彩专项集</option></select><select value={status} onChange={e=>setStatus(e.target.value)}><option>全部状态</option><option>已复核</option><option>已标注</option><option>待复核</option><option>待标注</option></select><button>更多筛选 ⌄</button></div>
+      {selected.length > 0 && <div className="batchbar"><b>已选择 {selected.length} 条 Case</b><span></span><button onClick={runEvaluation}>▶ 批量运行评测</button><button>移动到数据集</button><button onClick={()=>setSelected([])}>取消选择</button></div>}
+      <div className="dataset-table">
+        <div className="ds-row ds-head"><span><input type="checkbox" checked={selected.length===rows.length && rows.length>0} onChange={()=>setSelected(selected.length===rows.length?[]:rows.map(r=>r.id))}/></span><span>CASE / 场景</span><span>用户画像</span><span>风格偏好</span><span>所属数据集</span><span>人工评分</span><span>标注状态</span><span></span></div>
+        {rows.map((row,i)=><div className="ds-row" key={row.id}><span><input type="checkbox" checked={selected.includes(row.id)} onChange={()=>toggle(row.id)}/></span><span className="case-cell"><i>{row.image}</i><span><b>{row.id}</b><small>{row.scene}</small></span></span><span>{row.profile}</span><span><Pill tone="purple">{row.style}</Pill></span><span>{row.group}</span><span>{row.score ? <><strong>{row.score}</strong><small>/100</small></> : <em>—</em>}</span><span><Pill tone={row.label==="已复核"?"green":row.label==="待标注"?"red":"gray"}>{row.label}</Pill></span><button>•••</button></div>)}
+      </div>
+      <div className="pagination"><span>显示 1–{rows.length}，共 328 条</span><div><button disabled>‹</button><button className="on">1</button><button>2</button><button>3</button><button>…</button><button>55</button><button>›</button></div></div>
+    </section>
+  </div>;
+}
+
+const modelVersions = [
+  { id:"qwen-v3", name:"Qwen3-VL Plus", prompt:"Prompt v3.0", tag:"生产中", score:84.8, body:82, style:87, scene:86, color:85, need:84, latency:"38.6s", cost:"¥0.043", bad:36, date:"07-28 14:32", color:"#6754e9" },
+  { id:"qwen-v2", name:"Qwen3-VL Plus", prompt:"Prompt v2.1", tag:"候选", score:81.6, body:76, style:84, scene:83, color:82, need:83, latency:"34.2s", cost:"¥0.038", bad:42, date:"07-27 18:10", color:"#2aab82" },
+  { id:"openai-v1", name:"GPT-5.6 Terra", prompt:"Prompt v2.1", tag:"已归档", score:83.2, body:80, style:85, scene:84, color:84, need:83, latency:"18.4s", cost:"¥0.126", bad:39, date:"07-25 10:08", color:"#9b9eae" },
+];
+
+function ModelsPage({ createTask }: { createTask: () => void }) {
+  const [compare, setCompare] = useState(["qwen-v3","qwen-v2"]);
+  const compared = modelVersions.filter(v=>compare.includes(v.id));
+  const toggle = (id:string) => setCompare(compare.includes(id) ? compare.filter(x=>x!==id) : compare.length<3 ? [...compare,id] : compare);
+  return <div className="page models-page">
+    <div className="model-overview panel"><div><Pill tone="green">● Production</Pill><h2>Qwen3-VL Plus · Prompt v3.0</h2><p>当前生产评测模型 · 2026-07-28 发布</p></div><div><small>综合评分</small><b>84.8</b><em>↑ 3.2</em></div><div><small>Bad Case 率</small><b>11.0%</b><em>↓ 1.8%</em></div><div><small>平均耗时</small><b>38.6s</b><span>视觉高精度</span></div><button className="primary-btn" onClick={createTask}>运行新评测</button></div>
+    <div className="models-layout">
+      <section className="panel version-list"><div className="version-title"><div><h2>模型版本</h2><p>选择 2–3 个版本进行指标对比</p></div><button>＋ 新建版本</button></div>
+        {modelVersions.map(v=><button className={`version-card ${compare.includes(v.id)?"selected":""}`} key={v.id} onClick={()=>toggle(v.id)}><span className="check">{compare.includes(v.id)?"✓":""}</span><i style={{background:v.color}}>{v.name.charAt(0)}</i><div><b>{v.name}</b><small>{v.prompt} · {v.date}</small></div><Pill tone={v.tag==="生产中"?"green":v.tag==="候选"?"purple":"gray"}>{v.tag}</Pill><strong>{v.score}<small>分</small></strong></button>)}
+        <div className="version-note"><span>ℹ</span><p><b>版本管理建议</b><br/>模型、Prompt 或评分权重任一变化，都应创建独立版本并运行核心回归集。</p></div>
+      </section>
+      <section className="panel compare-panel"><div className="compare-head"><div><h2>版本表现对比</h2><p>基于核心回归集 120 Cases</p></div><button>⇩ 导出报告</button></div>
+        <div className="radar-area"><div className="radar"><span></span><i></i><b></b><em></em><div>场景匹配<small>90</small></div><div>风格一致<small>88</small></div><div>身材适配<small>82</small></div><div>色彩协调<small>86</small></div><div>需求满足<small>85</small></div></div><div className="radar-legend">{compared.map(v=><span key={v.id}><i style={{background:v.color}}></i>{v.name} · {v.prompt}</span>)}</div></div>
+        <div className="compare-table"><div className="cmp-row cmp-head"><span>评测指标</span>{compared.map(v=><span key={v.id}>{v.prompt}</span>)}</div>{[
+          ["综合评分","score"],["场景匹配度","scene"],["风格一致性","style"],["身材适配度","body"],["色彩协调性","color"],["需求满足度","need"],["Bad Case 数","bad"],["平均耗时","latency"],["单次成本","cost"]
+        ].map(([label,key])=><div className="cmp-row" key={key}><span>{label}</span>{compared.map((v,idx)=><span key={v.id} className={idx===0?"best":""}>{String(v[key as keyof typeof v])}{typeof v[key as keyof typeof v]==="number" && key!=="bad"?"":""}{idx===0&&["score","scene","style","body","color","need"].includes(key)?<small> ↑</small>:null}</span>)}</div>)}</div>
+        <div className="decision"><span>✓</span><p><b>版本结论</b>Prompt v3.0 在身材适配度上提升 6 分，Bad Case 减少 6 条；延迟增加 4.4 秒，但整体质量收益显著，建议保持生产版本。</p></div>
+      </section>
+    </div>
+  </div>;
+}
+
 export default function Home() {
   const [page, setPage] = useState<Page>("create");
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
-  return <main className="app-shell"><Sidebar page={page} setPage={setPage}/><div className="main"><Topbar page={page}/>{page==="create"&&<CreatePage onGenerate={(result)=>{setEvaluation(result);setPage("report");}}/>} {page==="report"&&<ReportPage evaluation={evaluation} goCases={()=>setPage("cases")}/>} {page==="cases"&&<CasesPage/>}</div></main>;
+  return <main className="app-shell"><Sidebar page={page} setPage={setPage}/><div className="main"><Topbar page={page}/>{page==="create"&&<CreatePage onGenerate={(result)=>{setEvaluation(result);setPage("report");}}/>} {page==="report"&&<ReportPage evaluation={evaluation} goCases={()=>setPage("cases")}/>} {page==="cases"&&<CasesPage/>} {page==="dataset"&&<DatasetPage runEvaluation={()=>setPage("create")}/>} {page==="models"&&<ModelsPage createTask={()=>setPage("create")}/>}</div></main>;
 }
