@@ -63,7 +63,7 @@ function Sidebar({ page, setPage }: { page: Page; setPage: (p: Page) => void }) 
         <em>{n.icon}</em><span><b>{n.label}</b><small>{n.sub}</small></span>
       </button>)}
     </nav>
-    <div className="side-foot"><div><span className="avatar">LY</span><span><b>林屿</b><small>产品评测负责人</small></span><i>•••</i></div><p><span></span> 服务运行正常 <b>v1.8.2</b></p></div>
+    <div className="side-foot"><div><span className="avatar">LY</span><span><b>林屿</b><small>产品评测负责人</small></span><i>•••</i></div><p><span></span> 服务运行正常 <b>v1.9.0</b></p></div>
   </aside>;
 }
 
