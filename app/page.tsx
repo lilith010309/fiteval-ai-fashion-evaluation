@@ -66,7 +66,7 @@ function Sidebar({ page, setPage }: { page: Page; setPage: (p: Page) => void }) 
 
 function Topbar({ page }: { page: Page }) {
   const meta = { create: ["创建评测任务", "使用用户画像与穿搭图片，生成并评估模型输出"], report: ["模型评测报告", "TASK-20260728-042 · StyleMind-v2.4"], cases: ["Bad Case Dashboard", "定位模型薄弱环节，驱动数据与策略迭代"] }[page];
-  return <header className="topbar"><div><p>评测中心 <span>/</span> {meta[0]}</p><h1>{meta[0]}</h1><small>{meta[1]}</small></div><div className="top-actions"><button>⌕</button><button className="notice">♢<i></i></button><div className="model"><span></span><div><small>当前模型</small><b>StyleMind-v2.4</b></div><i>⌄</i></div></div></header>;
+  return <header className="topbar"><div><p>评测中心 <span>/</span> {meta[0]}</p><h1>{meta[0]}</h1><small>{meta[1]}</small></div><div className="top-actions"><button>⌕</button><button className="notice">♢<i></i></button><div className="model"><span></span><div><small>当前视觉模型</small><b>Qwen3-VL Plus</b></div><i>⌄</i></div></div></header>;
 }
 
 function CreatePage({ onGenerate }: { onGenerate: (result: Evaluation) => void }) {

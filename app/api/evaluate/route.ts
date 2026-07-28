@@ -24,14 +24,14 @@ const schema = {
 
 export async function POST(request: Request) {
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) return NextResponse.json({ error: "服务端尚未配置 OPENAI_API_KEY" }, { status: 503 });
+    const apiKey = process.env.DASHSCOPE_API_KEY;
+    if (!apiKey) return NextResponse.json({ error: "服务端尚未配置 DASHSCOPE_API_KEY" }, { status: 503 });
     const input = await request.json();
     if (!input.imageDataUrl || !String(input.imageDataUrl).startsWith("data:image/")) {
       return NextResponse.json({ error: "请上传有效的 JPG、PNG 或 WEBP 图片" }, { status: 400 });
     }
 
-    const model = process.env.OPENAI_VISION_MODEL || "gpt-5.6-terra";
+    const model = process.env.QWEN_VISION_MODEL || "qwen3-vl-plus";
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 55_000);
     const prompt = `你是 AI 穿搭产品的资深模型评测员。根据图片中可直接观察到的服装证据，评估穿搭与用户需求的匹配质量。
@@ -42,26 +42,27 @@ export async function POST(request: Request) {
 按以下规则评分：场景匹配看正式度、活动与实用性；风格一致性看可见单品与正负偏好；身材适配只评价可观察到的衣长、腰线、松量和视觉比例，不推断被遮挡的身体数据；色彩协调看主辅色、色温、明度和饱和度；需求满足度综合判断明确诉求的覆盖。
 每个分数必须引用图片证据和用户需求证据。证据不足时降低 confidence 并明确说明。不得虚构材质、品牌、季节或身体特征。建议必须具体到单品、版型、颜色或搭配调整。`;
 
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       signal: controller.signal,
       body: JSON.stringify({
-        model, reasoning: { effort: "low" },
-        input: [{ role: "user", content: [
-          { type: "input_text", text: prompt },
-          { type: "input_image", image_url: input.imageDataUrl, detail: "original" },
+        model,
+        messages: [{ role: "user", content: [
+          { type: "image_url", image_url: { url: input.imageDataUrl }, min_pixels: 262144, max_pixels: 16777216 },
+          { type: "text", text: `${prompt}
+
+只输出符合以下 JSON Schema 的 JSON 对象，不要输出 Markdown 代码块或额外文字：
+${JSON.stringify(schema)}` },
         ]}],
-        text: { format: { type: "json_schema", name: "fashion_evaluation", strict: true, schema } },
-        max_output_tokens: 3000,
+        response_format: { type: "json_object" },
+        max_completion_tokens: 3000,
       }),
     });
     clearTimeout(timeout);
     const payload = await response.json();
-    if (!response.ok) return NextResponse.json({ error: payload?.error?.message || "OpenAI API 请求失败" }, { status: response.status });
-    const outputText = payload.output
-      ?.flatMap((item: { content?: Array<{ type?: string; text?: string }> }) => item.content || [])
-      .find((content: { type?: string }) => content.type === "output_text")?.text;
+    if (!response.ok) return NextResponse.json({ error: payload?.error?.message || "千问 API 请求失败" }, { status: response.status });
+    const outputText = payload.choices?.[0]?.message?.content;
     if (!outputText) return NextResponse.json({ error: "模型未返回可解析的评测结果" }, { status: 502 });
     return NextResponse.json({ taskId: `TASK-${Date.now()}`, status: "completed", model, mock: false, ...JSON.parse(outputText) });
   } catch (error) {
