@@ -3,7 +3,19 @@
 import { useMemo, useRef, useState } from "react";
 
 type Page = "create" | "report" | "cases";
-type Score = { name: string; value: number; reason: string; advice: string };
+type Score = { name: string; value: number; reason: string; advice: string; confidence?: number };
+type Evaluation = {
+  taskId: string;
+  model: string;
+  scores: Score[];
+  outfit: {
+    title: string;
+    summary: string;
+    items: Array<{ name: string; detail: string }>;
+    modelExplanation: string;
+  };
+  visualEvidence?: string[];
+};
 type BadCase = {
   id: string; score: number; type: string; scene: string; age: number;
   request: string; output: string; cause: string; solution: string; color: string;
@@ -57,54 +69,104 @@ function Topbar({ page }: { page: Page }) {
   return <header className="topbar"><div><p>评测中心 <span>/</span> {meta[0]}</p><h1>{meta[0]}</h1><small>{meta[1]}</small></div><div className="top-actions"><button>⌕</button><button className="notice">♢<i></i></button><div className="model"><span></span><div><small>当前模型</small><b>StyleMind-v2.4</b></div><i>⌄</i></div></div></header>;
 }
 
-function CreatePage({ onGenerate }: { onGenerate: () => void }) {
+function CreatePage({ onGenerate }: { onGenerate: (result: Evaluation) => void }) {
   const [file, setFile] = useState<string | null>(null);
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [styles, setStyles] = useState(["极简", "知性"]);
   const input = useRef<HTMLInputElement>(null);
-  const generate = () => { setLoading(true); setTimeout(() => { setLoading(false); onGenerate(); }, 1200); };
+  const profile = useRef<HTMLTextAreaElement>(null);
+  const age = useRef<HTMLInputElement>(null);
+  const height = useRef<HTMLInputElement>(null);
+  const scene = useRef<HTMLSelectElement>(null);
+  const generate = async () => {
+    if (!imageDataUrl) {
+      setError("请先上传一张穿搭图片，真实视觉评测需要图片输入。");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile: profile.current?.value,
+          age: Number(age.current?.value),
+          height: Number(height.current?.value),
+          styles,
+          scene: scene.current?.value,
+          imageDataUrl,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "模型评测失败");
+      onGenerate(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "模型评测失败，请稍后重试");
+    } finally {
+      setLoading(false);
+    }
+  };
   return <div className="page create-page">
     <div className="stepper"><div className="done"><b>1</b><span>填写评测输入<small>用户画像与场景</small></span></div><i></i><div><b>2</b><span>生成模型输出<small>模拟推理结果</small></span></div><i></i><div><b>3</b><span>查看评测报告<small>多维质量诊断</small></span></div></div>
     <div className="create-grid">
       <section className="panel form-panel"><div className="panel-title"><span><b>01</b><div><h2>用户画像与需求</h2><p>输入真实测试 Case 的基础信息</p></div></span><Pill>必填</Pill></div>
         <div className="form-grid">
-          <label className="wide">用户画像<textarea defaultValue="互联网产品经理，日常通勤需要见客户，希望穿着专业但不刻板，注重舒适度。" /><small>建议包含职业、体型特征与核心诉求</small></label>
-          <label>年龄<div className="input-unit"><input type="number" defaultValue={28}/><span>岁</span></div></label>
-          <label>身高<div className="input-unit"><input type="number" defaultValue={162}/><span>cm</span></div></label>
+          <label className="wide">用户画像<textarea ref={profile} defaultValue="互联网产品经理，日常通勤需要见客户，希望穿着专业但不刻板，注重舒适度。" /><small>建议包含职业、体型特征与核心诉求</small></label>
+          <label>年龄<div className="input-unit"><input ref={age} type="number" defaultValue={28}/><span>岁</span></div></label>
+          <label>身高<div className="input-unit"><input ref={height} type="number" defaultValue={162}/><span>cm</span></div></label>
           <label className="wide">风格偏好<div className="chip-input">{styles.map(s => <button key={s} onClick={() => setStyles(styles.filter(x => x !== s))}>{s} ×</button>)}<input placeholder="添加风格标签…" onKeyDown={e => { if(e.key === "Enter" && e.currentTarget.value) { setStyles([...styles, e.currentTarget.value]); e.currentTarget.value = ""; }}} /></div><div className="quick">常用：{["法式", "松弛感", "通勤", "复古"].map(s => <button key={s} onClick={() => !styles.includes(s) && setStyles([...styles,s])}>＋ {s}</button>)}</div></label>
-          <label className="wide">使用场景<select defaultValue="通勤 / 客户会议"><option>通勤 / 客户会议</option><option>周末约会</option><option>朋友婚礼</option><option>城市旅行</option></select></label>
+          <label className="wide">使用场景<select ref={scene} defaultValue="通勤 / 客户会议"><option>通勤 / 客户会议</option><option>周末约会</option><option>朋友婚礼</option><option>城市旅行</option></select></label>
         </div>
       </section>
       <section className="panel upload-panel"><div className="panel-title"><span><b>02</b><div><h2>参考穿搭图片</h2><p>用于评估模型的视觉理解能力</p></div></span><Pill>选填</Pill></div>
-        <input ref={input} type="file" accept="image/*" hidden onChange={e => { const f=e.target.files?.[0]; if(f) setFile(URL.createObjectURL(f)); }}/>
+        <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={e => {
+          const f=e.target.files?.[0];
+          if (!f) return;
+          if (f.size > 8 * 1024 * 1024) { setError("图片不能超过 8MB"); return; }
+          setFile(URL.createObjectURL(f));
+          const reader = new FileReader();
+          reader.onload = () => setImageDataUrl(String(reader.result));
+          reader.readAsDataURL(f);
+        }}/>
         <button className={`dropzone ${file ? "has-image" : ""}`} onClick={() => input.current?.click()}>
-          {file ? <img src={file} alt="上传的穿搭参考" /> : <><span className="upload-icon">↑</span><b>点击或拖拽上传图片</b><p>支持 JPG、PNG、WEBP · 单张不超过 10MB</p><small>建议上传全身、光线清晰的穿搭照</small></>}
+          {file ? <img src={file} alt="上传的穿搭参考" /> : <><span className="upload-icon">↑</span><b>点击或拖拽上传图片</b><p>支持 JPG、PNG、WEBP · 单张不超过 8MB</p><small>建议上传全身、光线清晰的穿搭照</small></>}
         </button>
-        <div className="privacy"><span>⌾</span><p><b>数据隐私说明</b><br/>上传图片仅用于本次模拟评测，不会被存储或用于模型训练。</p></div>
+        <div className="privacy"><span>⌾</span><p><b>数据隐私说明</b><br/>图片将发送至视觉模型完成本次分析，请勿上传敏感或未经授权的照片。</p></div>
       </section>
     </div>
-    <div className="runbar"><div><span>♢</span><p><b>准备生成模拟 AI 穿搭结果</b><small>系统将基于 StyleMind-v2.4 生成一套搭配，并自动执行 5 个维度的评测</small></p></div><button onClick={generate} disabled={loading}>{loading ? <><i className="spinner"></i>模型推理中…</> : <>生成并开始评测 <span>→</span></>}</button></div>
+    {error && <div className="api-error">⚠ {error}</div>}
+    <div className="runbar"><div><span>♢</span><p><b>使用视觉模型分析真实穿搭图片</b><small>系统将识别服装证据，并结合用户需求执行 5 个维度的评测</small></p></div><button onClick={generate} disabled={loading}>{loading ? <><i className="spinner"></i>视觉分析中…</> : <>开始真实评测 <span>→</span></>}</button></div>
   </div>;
 }
 
-function ReportPage({ goCases }: { goCases: () => void }) {
+function ReportPage({ goCases, evaluation }: { goCases: () => void; evaluation: Evaluation | null }) {
   const [open, setOpen] = useState(0);
-  const avg = Math.round(scores.reduce((a,b)=>a+b.value,0)/scores.length);
+  const displayScores = evaluation?.scores || scores;
+  const outfit = evaluation?.outfit || {
+    title: "知性松弛感通勤 Look",
+    summary: "燕麦色短款西装搭配炭灰垂感阔腿裤，以酒红色乐福鞋作为视觉焦点，兼顾专业感与舒适度。",
+    items: [{name:"短款羊毛西装",detail:"燕麦色 · 微收腰"},{name:"垂感阔腿裤",detail:"炭灰 · 高腰"},{name:"方头乐福鞋",detail:"酒红 · 3cm 跟"}],
+    modelExplanation: "考虑到你的身高与显高诉求，我用短款外套和高腰裤提高视觉腰线。",
+  };
+  const avg = Math.round(displayScores.reduce((a,b)=>a+b.value,0)/displayScores.length);
   return <div className="page report-page">
-    <div className="report-hero panel"><div><Pill tone="green">✓ 评测完成</Pill><h2>综合质量评分</h2><p>基于规则引擎与 LLM Judge 的加权结果</p></div><div className="score-ring" style={{"--score": `${avg * 3.6}deg`} as React.CSSProperties}><span><b>{avg}</b><small>/ 100</small></span></div><div className="hero-stats"><div><small>模型版本</small><b>StyleMind-v2.4</b></div><div><small>评测耗时</small><b>2.8s</b></div><div><small>质量等级</small><b className="good">良好 B+</b></div></div><button className="ghost">↻ 重新评测</button></div>
+    <div className="report-hero panel"><div><Pill tone="green">✓ 真实评测完成</Pill><h2>综合质量评分</h2><p>基于视觉证据与结构化 LLM Judge 的结果</p></div><div className="score-ring" style={{"--score": `${avg * 3.6}deg`} as React.CSSProperties}><span><b>{avg}</b><small>/ 100</small></span></div><div className="hero-stats"><div><small>评测模型</small><b>{evaluation?.model || "Mock"}</b></div><div><small>任务 ID</small><b>{evaluation?.taskId?.slice(-8) || "DEMO"}</b></div><div><small>质量等级</small><b className="good">{avg >= 85 ? "优秀 A" : avg >= 75 ? "良好 B" : "待优化 C"}</b></div></div><button className="ghost">↻ 重新评测</button></div>
     <div className="report-layout">
       <div>
         <div className="section-head"><div><h2>维度评分明细</h2><p>点击展开原因分析与优化建议</p></div><Pill>5 个维度</Pill></div>
-        <div className="score-list">{scores.map((s,i) => <article className={`score-card ${open===i?"expanded":""}`} key={s.name} onClick={() => setOpen(open===i ? -1 : i)}>
+        <div className="score-list">{displayScores.map((s,i) => <article className={`score-card ${open===i?"expanded":""}`} key={s.name} onClick={() => setOpen(open===i ? -1 : i)}>
           <div className="score-main"><b className="num">0{i+1}</b><div className="score-info"><div><h3>{s.name}</h3><span className={s.value >= 85 ? "high" : s.value >= 80 ? "mid" : "low"}>{s.value >= 85 ? "表现优秀" : s.value >= 80 ? "基本达标" : "待优化"}</span></div><div className="bar"><i style={{width:`${s.value}%`}}></i></div></div><strong>{s.value}<small>/100</small></strong><button>⌄</button></div>
           {open===i && <div className="analysis"><div><span className="reason">⌕</span><p><b>原因分析</b>{s.reason}</p></div><div><span className="tip">↗</span><p><b>优化建议</b>{s.advice}</p></div></div>}
         </article>)}</div>
       </div>
       <aside className="output-card panel"><div className="card-head"><div><h2>AI 穿搭输出</h2><p>StyleMind-v2.4 生成结果</p></div><button>•••</button></div>
         <div className="outfit-visual"><div className="outfit-person"><span className="head"></span><span className="body"></span><span className="legs"></span></div><Pill tone="purple">LOOK 01</Pill></div>
-        <h3>知性松弛感通勤 Look</h3><p className="desc">燕麦色短款西装搭配炭灰垂感阔腿裤，以酒红色乐福鞋作为视觉焦点，兼顾专业感与舒适度。</p>
-        <div className="items"><span>短款羊毛西装<small>燕麦色 · 微收腰</small></span><span>垂感阔腿裤<small>炭灰 · 高腰</small></span><span>方头乐福鞋<small>酒红 · 3cm 跟</small></span></div>
-        <div className="prompt"><small>模型解释</small><p>“考虑到你的身高与显高诉求，我用短款外套和高腰裤提高视觉腰线……”</p></div>
+        <h3>{outfit.title}</h3><p className="desc">{outfit.summary}</p>
+        <div className="items">{outfit.items.map(item => <span key={item.name}>{item.name}<small>{item.detail}</small></span>)}</div>
+        <div className="prompt"><small>模型解释</small><p>“{outfit.modelExplanation}”</p></div>
         <button className="flag" onClick={goCases}>⚑ 标记为 Bad Case</button>
       </aside>
     </div>
@@ -137,5 +199,6 @@ function CasesPage() {
 
 export default function Home() {
   const [page, setPage] = useState<Page>("create");
-  return <main className="app-shell"><Sidebar page={page} setPage={setPage}/><div className="main"><Topbar page={page}/>{page==="create"&&<CreatePage onGenerate={()=>setPage("report")}/>} {page==="report"&&<ReportPage goCases={()=>setPage("cases")}/>} {page==="cases"&&<CasesPage/>}</div></main>;
+  const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
+  return <main className="app-shell"><Sidebar page={page} setPage={setPage}/><div className="main"><Topbar page={page}/>{page==="create"&&<CreatePage onGenerate={(result)=>{setEvaluation(result);setPage("report");}}/>} {page==="report"&&<ReportPage evaluation={evaluation} goCases={()=>setPage("cases")}/>} {page==="cases"&&<CasesPage/>}</div></main>;
 }
