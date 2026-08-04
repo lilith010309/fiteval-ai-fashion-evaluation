@@ -63,7 +63,7 @@ function Sidebar({ page, setPage }: { page: Page; setPage: (p: Page) => void }) 
         <em>{n.icon}</em><span><b>{n.label}</b><small>{n.sub}</small></span>
       </button>)}
     </nav>
-    <div className="side-foot"><div><span className="avatar">LY</span><span><b>林屿</b><small>产品评测负责人</small></span><i>•••</i></div><p><span></span> 服务运行正常 <b>v1.9.0</b></p></div>
+    <div className="side-foot"><div><span className="avatar">LY</span><span><b>林屿</b><small>产品评测负责人</small></span><i>•••</i></div><p><span></span> 服务运行正常 <b>v1.9.1</b></p></div>
   </aside>;
 }
 
@@ -219,8 +219,14 @@ function DatasetPage({ runEvaluation }: { runEvaluation: () => void }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("全部状态");
   const [selected, setSelected] = useState<string[]>([]);
-  const rows = datasetRows.filter(row => (status === "全部状态" || row.label === status) && `${row.id}${row.scene}${row.profile}${row.style}`.includes(query));
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [detail, setDetail] = useState<(typeof datasetRows)[number] | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<(typeof datasetRows)[number] | null>(null);
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
+  const [toast, setToast] = useState("");
+  const rows = datasetRows.filter(row => !removedIds.includes(row.id) && (status === "全部状态" || row.label === status) && `${row.id}${row.scene}${row.profile}${row.style}`.includes(query));
   const toggle = (id:string) => setSelected(selected.includes(id) ? selected.filter(x=>x!==id) : [...selected,id]);
+  const showToast = (message: string) => { setToast(message); setTimeout(() => setToast(""), 2400); };
   return <div className="page dataset-page">
     <div className="dataset-summary">
       <div className="panel ds-stat"><span>⌗</span><div><small>全部 Case</small><b>328</b><p>覆盖 12 个核心场景</p></div></div>
@@ -234,10 +240,13 @@ function DatasetPage({ runEvaluation }: { runEvaluation: () => void }) {
       {selected.length > 0 && <div className="batchbar"><b>已选择 {selected.length} 条 Case</b><span></span><button onClick={runEvaluation}>▶ 批量运行评测</button><button>移动到数据集</button><button onClick={()=>setSelected([])}>取消选择</button></div>}
       <div className="dataset-table">
         <div className="ds-row ds-head"><span><input type="checkbox" checked={selected.length===rows.length && rows.length>0} onChange={()=>setSelected(selected.length===rows.length?[]:rows.map(r=>r.id))}/></span><span>CASE / 场景</span><span>用户画像</span><span>风格偏好</span><span>所属数据集</span><span>人工评分</span><span>标注状态</span><span></span></div>
-        {rows.map((row,i)=><div className="ds-row" key={row.id}><span><input type="checkbox" checked={selected.includes(row.id)} onChange={()=>toggle(row.id)}/></span><span className="case-cell"><i>{row.image}</i><span><b>{row.id}</b><small>{row.scene}</small></span></span><span>{row.profile}</span><span><Pill tone="purple">{row.style}</Pill></span><span>{row.group}</span><span>{row.score ? <><strong>{row.score}</strong><small>/100</small></> : <em>—</em>}</span><span><Pill tone={row.label==="已复核"?"green":row.label==="待标注"?"red":"gray"}>{row.label}</Pill></span><button>•••</button></div>)}
+        {rows.map(row=><div className="ds-row" key={row.id}><span><input type="checkbox" checked={selected.includes(row.id)} onChange={()=>toggle(row.id)}/></span><span className="case-cell"><i>{row.image}</i><span><b>{row.id}</b><small>{row.scene}</small></span></span><span>{row.profile}</span><span><Pill tone="purple">{row.style}</Pill></span><span>{row.group}</span><span>{row.score ? <><strong>{row.score}</strong><small>/100</small></> : <em>—</em>}</span><span><Pill tone={row.label==="已复核"?"green":row.label==="待标注"?"red":"gray"}>{row.label}</Pill></span><span className="case-actions"><button aria-label={`打开 ${row.id} 操作菜单`} onClick={()=>setActiveMenu(activeMenu===row.id?null:row.id)}>•••</button>{activeMenu===row.id&&<div className="case-menu"><button onClick={()=>{setDetail(row);setActiveMenu(null)}}>⌕ 查看详情</button><button onClick={()=>{setDetail(row);setActiveMenu(null);showToast(`${row.id} 已进入编辑模式`)}}>✎ 编辑 Case</button><button onClick={()=>{setActiveMenu(null);showToast(`${row.id} 已加入核心回归集`)}}>＋ 加入回归集</button><button className="danger" onClick={()=>{setPendingDelete(row);setActiveMenu(null)}}>⌫ 删除 Case</button></div>}</span></div>)}
       </div>
       <div className="pagination"><span>显示 1–{rows.length}，共 328 条</span><div><button disabled>‹</button><button className="on">1</button><button>2</button><button>3</button><button>…</button><button>55</button><button>›</button></div></div>
     </section>
+    {toast && <div className="dataset-toast">✓ {toast}</div>}
+    {detail && <div className="drawer-backdrop" onClick={()=>setDetail(null)}><aside className="drawer case-detail" onClick={e=>e.stopPropagation()}><div className="drawer-head"><div><Pill tone="purple">评测数据集 Case</Pill><h2>{detail.id}</h2><p>{detail.scene} · {detail.group}</p></div><button onClick={()=>setDetail(null)}>×</button></div><div className="drawer-body"><section><small>01 · 用户画像</small><p>{detail.profile}</p><Pill tone="purple">{detail.style}</Pill></section><section><small>02 · 标注与评分</small><div className="case-detail-score"><div><small>人工评分</small><b>{detail.score ?? "待标注"}{detail.score && <em>/100</em>}</b></div><div><small>标注状态</small><Pill tone={detail.label==="已复核"?"green":detail.label==="待标注"?"red":"gray"}>{detail.label}</Pill></div></div></section><section><small>03 · Case 用途</small><p>该 Case 属于「{detail.group}」，用于模型版本回归测试和 Bad Case 归因验证。</p></section><button className="primary-btn detail-run" onClick={()=>{setDetail(null);runEvaluation()}}>▶ 用此 Case 运行评测</button></div></aside></div>}
+    {pendingDelete && <div className="drawer-backdrop"><div className="confirm-card"><span>⚠</span><h2>删除 {pendingDelete.id}？</h2><p>该操作只会从当前 Demo 列表移除这条 Mock Case。</p><div><button onClick={()=>setPendingDelete(null)}>取消</button><button className="delete-btn" onClick={()=>{setRemovedIds([...removedIds,pendingDelete.id]);setSelected(selected.filter(id=>id!==pendingDelete.id));setPendingDelete(null);showToast(`${pendingDelete.id} 已从列表移除`)}}>确认删除</button></div></div></div>}
   </div>;
 }
 

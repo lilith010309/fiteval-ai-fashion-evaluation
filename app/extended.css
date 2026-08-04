@@ -31,3 +31,33 @@
   .compare-table{overflow:auto}
   .cmp-row{min-width:500px}
 }
+
+.case-actions{position:relative;display:flex;justify-content:center}
+.case-actions>button{width:28px;height:28px;border:0;background:transparent;color:#777b8b;border-radius:6px;cursor:pointer;font-size:14px;letter-spacing:1px}
+.case-actions>button:hover{background:#efedff;color:#5e4cda}
+.case-menu{position:absolute;right:0;top:31px;z-index:12;width:150px;padding:5px;background:#fff;border:1px solid #e2e1ea;border-radius:8px;box-shadow:0 12px 28px #24243622}
+.case-menu button{display:block;width:100%;border:0;background:transparent;border-radius:5px;padding:8px 9px;text-align:left;font-size:9px;color:#55596a;cursor:pointer}
+.case-menu button:hover{background:#f5f3ff;color:#5d4ad5}
+.case-menu button.danger{color:#d65b4d}
+.case-menu button.danger:hover{background:#fff2ef}
+.dataset-toast{position:fixed;right:26px;bottom:28px;z-index:70;padding:11px 14px;border-radius:9px;background:#20212e;color:#fff;font-size:10px;box-shadow:0 12px 28px #17182433}
+.case-detail-score{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.case-detail-score>div{padding:11px;background:#f7f7fa;border-radius:7px}
+.case-detail-score small,.case-detail-score b{display:block}
+.case-detail-score small{font-size:8px;color:#9497a5}
+.case-detail-score b{font-size:17px;margin-top:5px}
+.case-detail-score b em{font-size:8px;color:#999;font-style:normal}
+.detail-run{width:100%;margin-top:18px}
+.confirm-card{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(360px,calc(100vw - 32px));background:#fff;border-radius:12px;padding:24px;box-shadow:0 18px 45px #11111f33;text-align:center}
+.confirm-card>span{display:grid;place-items:center;margin:auto;width:36px;height:36px;border-radius:50%;background:#fff1ee;color:#d65b4d}
+.confirm-card h2{font-size:15px;margin:13px 0 7px}
+.confirm-card p{font-size:10px;color:#777a89;line-height:1.5;margin:0}
+.confirm-card>div{display:flex;justify-content:center;gap:8px;margin-top:18px}
+.confirm-card button{border:1px solid #e1e1e8;background:#fff;border-radius:7px;padding:8px 13px;font-size:9px;color:#626575;cursor:pointer}
+.confirm-card .delete-btn{background:#dc6254;color:#fff;border-color:#dc6254}
+
+@media(max-width:720px){
+  .dataset-toast{right:14px;bottom:78px}
+  .case-menu{position:fixed;right:16px;left:16px;top:auto;bottom:80px;width:auto}
+  .case-menu button{font-size:11px;padding:11px}
+}
